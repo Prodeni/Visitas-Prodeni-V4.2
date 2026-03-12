@@ -75,22 +75,44 @@
       to   { transform: translateY(0);    opacity: 1; }
     }
 
-    . {
-      text-align: center;
+    .brand {
       margin-bottom: 2rem;
     }
+    
+    /* NUEVO: Contenedor flex para alinear logo y texto */
+    .brand-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap; /* Por si en móviles muy pequeños se apilan */
+    }
+    
     .brand-logo {
-      width: 130px;
+      width: 100px; /* Ajusta este tamaño según necesites */
       height: auto;
-      margin-bottom: 10px;
       filter: drop-shadow(0 4px 12px rgba(46,125,50,0.3));
     }
+    
     .brand-slogan {
-      font-size: 0.82rem;
-      font-weight: 300;
+      font-size: 0.9rem;
+      font-weight: 500;
       color: var(--verde-corp);
       font-style: italic;
-      letter-spacing: 1.5px;
+      letter-spacing: 1px;
+      white-space: nowrap; /* Evita que el texto se rompa */
+    }
+    
+    /* Versión responsive para móviles pequeños */
+    @media (max-width: 380px) {
+      .brand-container {
+        flex-direction: column;
+        gap: 5px;
+      }
+      .brand-slogan {
+        white-space: normal;
+        text-align: center;
+      }
     }
 
     .form-title {
@@ -222,11 +244,15 @@
 </head>
 <body>
 
-<div class="brand" style="display: flex; flex-direction: column; align-items: center;">
-  <img src="Logo.png" alt="PRODENI" class="brand-logo"
-       onerror="this.style.display='none'">
-  <span class="brand-slogan">Guardianes de la Tierra</span>
-</div>
+<div class="card">
+  <div class="brand">
+    <!-- NUEVA ESTRUCTURA: Contenedor flex para alinear logo y texto -->
+    <div class="brand-container">
+      <img src="Logo.png" alt="PRODENI" class="brand-logo"
+           onerror="this.style.display='none'">
+      <span class="brand-slogan">Guardianes de la Tierra</span>
+    </div>
+  </div>
 
   <div class="offline-badge" id="offlineBadge">
     <i class="fas fa-wifi-slash"></i> Modo sin conexión
