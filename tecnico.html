@@ -983,32 +983,33 @@ async function sendToServer(data, pendingIndex) {
 async function submitToAppsScript(data) {
   var clean = {};
   for (var k in data) {
-    if (data[k] !== null && data[k] !== undefined && data[k] !== '') clean[k] = String(data[k]);
+    if (data[k] !== null && data[k] !== undefined && data[k] !== '') {
+      clean[k] = String(data[k]);
+    }
   }
   clean.action = 'saveData';
 
   var url = SCRIPT_URL + '?' + new URLSearchParams(clean).toString();
 
-  // Intento 1: GET corto con CORS — podemos leer la respuesta
+  // Apps Script NO soporta CORS — usar siempre no-cors
+  // GET no-cors: funciona para URLs cortas, no podemos leer la respuesta
+  // pero Apps Script ejecuta el handler igualmente → el dato llega al Sheet
   if (url.length <= 2000) {
     try {
-      var res = await fetch(url, { method:'GET', mode:'cors', cache:'no-store' });
-      if (res.ok) {
-        var json = await res.json().catch(function(){return{success:true};});
-        return json;
-      }
-    } catch(e) { /* CORS bloqueado o sin red — intentar no-cors */ }
+      await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+      return { success: true };
+    } catch(e) { /* sin red → intentar POST */ }
   }
 
-  // Intento 2: POST con mode:'no-cors' (no podemos leer respuesta, asumimos éxito si no lanza)
+  // URL larga o GET fallido → POST no-cors con body JSON
   try {
     await fetch(SCRIPT_URL, {
-      method: 'POST',
-      mode:   'no-cors',
+      method:  'POST',
+      mode:    'no-cors',
       headers: { 'Content-Type': 'text/plain' },
-      body:   JSON.stringify(clean),
+      body:    JSON.stringify(clean),
     });
-    return { success: true };  // no-cors no lanza si llega
+    return { success: true };
   } catch(e) {
     throw new Error('Sin red: ' + e.message);
   }
