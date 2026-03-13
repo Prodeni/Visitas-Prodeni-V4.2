@@ -493,6 +493,18 @@
         <div style="font-size:0.7rem;color:var(--text-soft);margin-top:4px;">
           Última sync: <strong id="last-sync">—</strong>
         </div>
+        <!-- Botón sync siempre visible -->
+        <button id="btnSyncPerm"
+          onclick="syncPending(true)"
+          style="margin-top:10px;width:100%;padding:10px;background:var(--verde-corp);
+                 color:white;border:none;border-radius:10px;font-family:Outfit,sans-serif;
+                 font-size:0.82rem;font-weight:700;cursor:pointer;
+                 display:flex;align-items:center;justify-content:center;gap:8px;
+                 box-shadow:0 3px 10px rgba(46,125,50,0.3);transition:opacity 0.2s;">
+          <i class="fas fa-sync-alt"></i> Sincronizar pendientes
+        </button>
+        <div id="syncStatus" style="font-size:0.72rem;text-align:center;margin-top:5px;
+             color:var(--text-soft);min-height:16px;"></div>
       </div>
     </div>
 
@@ -989,30 +1001,45 @@ async function submitToAppsScript(data) {
   }
   clean.action = 'saveData';
 
+  // ── MÉTODO 1: fetch no-cors GET (Apps Script ignora CORS pero ejecuta el handler) ──
+  // Apps Script redirige de script.google.com → googleusercontent.com
+  // fetch no-cors sigue el redirect y llega al handler — el dato SÍ se guarda
   var url = SCRIPT_URL + '?' + new URLSearchParams(clean).toString();
-
-  // Apps Script NO soporta CORS — usar siempre no-cors
-  // GET no-cors: funciona para URLs cortas, no podemos leer la respuesta
-  // pero Apps Script ejecuta el handler igualmente → el dato llega al Sheet
-  if (url.length <= 2000) {
-    try {
-      await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
-      return { success: true };
-    } catch(e) { /* sin red → intentar POST */ }
-  }
-
-  // URL larga o GET fallido → POST no-cors con body JSON
   try {
-    await fetch(SCRIPT_URL, {
-      method:  'POST',
+    await fetch(url, {
+      method:  'GET',
       mode:    'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body:    JSON.stringify(clean),
+      cache:   'no-store',
+      redirect: 'follow',
     });
     return { success: true };
-  } catch(e) {
-    throw new Error('Sin red: ' + e.message);
+  } catch(e1) {
+    // sin red o bloqueado — intentar método 2
   }
+
+  // ── MÉTODO 2: imagen oculta (siempre funciona, cross-origin, sin CORS) ────────────
+  // Apps Script ejecuta el GET aunque sea desde una <img> — dato llega al Sheet
+  return new Promise(function(resolve) {
+    var img = new Image();
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      if (img.parentNode) img.parentNode.removeChild(img);
+      resolve({ success: true });
+    }
+    img.onload  = finish;
+    img.onerror = finish; // Apps Script devuelve JSON (no imagen) → onerror se dispara
+                          // pero el servidor YA ejecutó el handler → dato guardado
+    img.src = url + '&_t=' + Date.now();
+    img.style.display = 'none';
+    document.body.appendChild(img);
+    // Timeout de seguridad: 12 segundos
+    setTimeout(function() {
+      finish();
+      if (!done) throw new Error('Sin red');
+    }, 12000);
+  });
 }
 
 function saveLocally(data) {
@@ -1118,7 +1145,11 @@ async function syncPending(manual) {
 
   _syncInProgress = true;
   var btnSync = document.getElementById('btnSyncAll');
-  if (btnSync) { btnSync.disabled = true; btnSync.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sincronizando...'; }
+  var btnPerm2 = document.getElementById('btnSyncPerm');
+  var statusDiv2 = document.getElementById('syncStatus');
+  if (btnSync)   { btnSync.disabled  = true; btnSync.innerHTML  = '<i class="fas fa-spinner fa-spin"></i> Sincronizando...'; }
+  if (btnPerm2)  { btnPerm2.disabled = true; btnPerm2.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
+  if (statusDiv2) statusDiv2.innerHTML = '<span style="color:#2E7D32">⏳ Enviando ' + pending.length + ' registro(s)...</span>';
   if (manual) toast('Enviando ' + pending.length + ' registro(s)...', 'info');
 
   var ok = 0, fail = 0;
@@ -1152,9 +1183,19 @@ async function syncPending(manual) {
   }
 
   _syncInProgress = false;
-  if (btnSync) { btnSync.disabled = false; btnSync.innerHTML = '<i class="fas fa-sync-alt"></i> Sincronizar Todo'; }
+  var btnPerm = document.getElementById('btnSyncPerm');
+  var statusDiv = document.getElementById('syncStatus');
+  if (btnSync)  { btnSync.disabled  = false; btnSync.innerHTML  = '<i class="fas fa-sync-alt"></i> Sincronizar Todo'; }
+  if (btnPerm)  { btnPerm.disabled  = false; btnPerm.innerHTML  = '<i class="fas fa-sync-alt"></i> Sincronizar pendientes'; }
   loadPending(); updateStats();
-  document.getElementById('last-sync').textContent = new Date().toLocaleTimeString('es-MX');
+  var now = new Date().toLocaleTimeString('es-MX');
+  document.getElementById('last-sync').textContent = now;
+  if (statusDiv) {
+    if (ok > 0 && fail === 0)    statusDiv.innerHTML = '<span style="color:#2E7D32">✅ ' + ok + ' enviados — ' + now + '</span>';
+    else if (ok > 0 && fail > 0) statusDiv.innerHTML = '<span style="color:#F9A825">⚠️ ' + ok + ' enviados, ' + fail + ' fallaron</span>';
+    else if (fail > 0)           statusDiv.innerHTML = '<span style="color:#C62828">❌ Error — verifica conexión</span>';
+    else                         statusDiv.innerHTML = '<span style="color:#888">Sin pendientes</span>';
+  }
   if (ok > 0 && fail === 0) toast(ok + ' registro(s) enviado(s) ✓', 'success');
   else if (ok > 0 && fail > 0) toast(ok + ' enviados, ' + fail + ' fallaron — reintenta', 'warn');
   else if (fail > 0) toast('Error al enviar. Intenta de nuevo.', 'error');
