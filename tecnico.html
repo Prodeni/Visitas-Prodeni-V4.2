@@ -493,14 +493,11 @@
         <div style="font-size:0.7rem;color:var(--text-soft);margin-top:4px;">
           Última sync: <strong id="last-sync">—</strong>
         </div>
-        <!-- Botón sync siempre visible -->
-        <button id="btnSyncPerm"
-          onclick="syncPending(true)"
+        <button id="btnSyncPerm" onclick="syncPending(true)"
           style="margin-top:10px;width:100%;padding:10px;background:var(--verde-corp);
                  color:white;border:none;border-radius:10px;font-family:Outfit,sans-serif;
                  font-size:0.82rem;font-weight:700;cursor:pointer;
-                 display:flex;align-items:center;justify-content:center;gap:8px;
-                 box-shadow:0 3px 10px rgba(46,125,50,0.3);transition:opacity 0.2s;">
+                 display:flex;align-items:center;justify-content:center;gap:8px;">
           <i class="fas fa-sync-alt"></i> Sincronizar pendientes
         </button>
         <div id="syncStatus" style="font-size:0.72rem;text-align:center;margin-top:5px;
@@ -1000,45 +997,22 @@ async function submitToAppsScript(data) {
     }
   }
   clean.action = 'saveData';
-
-  // ── MÉTODO 1: fetch no-cors GET (Apps Script ignora CORS pero ejecuta el handler) ──
-  // Apps Script redirige de script.google.com → googleusercontent.com
-  // fetch no-cors sigue el redirect y llega al handler — el dato SÍ se guarda
   var url = SCRIPT_URL + '?' + new URLSearchParams(clean).toString();
-  try {
-    await fetch(url, {
-      method:  'GET',
-      mode:    'no-cors',
-      cache:   'no-store',
-      redirect: 'follow',
-    });
-    return { success: true };
-  } catch(e1) {
-    // sin red o bloqueado — intentar método 2
-  }
 
-  // ── MÉTODO 2: imagen oculta (siempre funciona, cross-origin, sin CORS) ────────────
-  // Apps Script ejecuta el GET aunque sea desde una <img> — dato llega al Sheet
-  return new Promise(function(resolve) {
+  // Apps Script usa redirect — el método más confiable es <img> tag
+  // El navegador sigue el redirect y Apps Script ejecuta el handler
+  // aunque devuelva JSON (no imagen), onerror se dispara DESPUÉS de que el dato fue guardado
+  return new Promise(function(resolve, reject) {
     var img = new Image();
-    var done = false;
-    function finish() {
-      if (done) return;
-      done = true;
-      if (img.parentNode) img.parentNode.removeChild(img);
+    var timer = setTimeout(function() {
+      img.src = '';
+      reject(new Error('timeout'));
+    }, 15000);
+    img.onload = img.onerror = function() {
+      clearTimeout(timer);
       resolve({ success: true });
-    }
-    img.onload  = finish;
-    img.onerror = finish; // Apps Script devuelve JSON (no imagen) → onerror se dispara
-                          // pero el servidor YA ejecutó el handler → dato guardado
-    img.src = url + '&_t=' + Date.now();
-    img.style.display = 'none';
-    document.body.appendChild(img);
-    // Timeout de seguridad: 12 segundos
-    setTimeout(function() {
-      finish();
-      if (!done) throw new Error('Sin red');
-    }, 12000);
+    };
+    img.src = url + '&_cb=' + Date.now();
   });
 }
 
@@ -1145,11 +1119,11 @@ async function syncPending(manual) {
 
   _syncInProgress = true;
   var btnSync = document.getElementById('btnSyncAll');
-  var btnPerm2 = document.getElementById('btnSyncPerm');
-  var statusDiv2 = document.getElementById('syncStatus');
-  if (btnSync)   { btnSync.disabled  = true; btnSync.innerHTML  = '<i class="fas fa-spinner fa-spin"></i> Sincronizando...'; }
-  if (btnPerm2)  { btnPerm2.disabled = true; btnPerm2.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
-  if (statusDiv2) statusDiv2.innerHTML = '<span style="color:#2E7D32">⏳ Enviando ' + pending.length + ' registro(s)...</span>';
+  var bPerm2  = document.getElementById('btnSyncPerm');
+  var sDiv2   = document.getElementById('syncStatus');
+  if (btnSync) { btnSync.disabled = true; btnSync.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
+  if (bPerm2)  { bPerm2.disabled  = true; bPerm2.innerHTML  = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
+  if (sDiv2)     sDiv2.innerHTML = '<span style="color:#2E7D32">⏳ Enviando ' + pending.length + ' registro(s)...</span>';
   if (manual) toast('Enviando ' + pending.length + ' registro(s)...', 'info');
 
   var ok = 0, fail = 0;
@@ -1183,18 +1157,18 @@ async function syncPending(manual) {
   }
 
   _syncInProgress = false;
-  var btnPerm = document.getElementById('btnSyncPerm');
-  var statusDiv = document.getElementById('syncStatus');
-  if (btnSync)  { btnSync.disabled  = false; btnSync.innerHTML  = '<i class="fas fa-sync-alt"></i> Sincronizar Todo'; }
-  if (btnPerm)  { btnPerm.disabled  = false; btnPerm.innerHTML  = '<i class="fas fa-sync-alt"></i> Sincronizar pendientes'; }
+  var bPerm = document.getElementById('btnSyncPerm');
+  var sDiv  = document.getElementById('syncStatus');
+  if (btnSync) { btnSync.disabled = false; btnSync.innerHTML = '<i class="fas fa-sync-alt"></i> Sincronizar Todo'; }
+  if (bPerm)   { bPerm.disabled   = false; bPerm.innerHTML   = '<i class="fas fa-sync-alt"></i> Sincronizar pendientes'; }
   loadPending(); updateStats();
-  var now = new Date().toLocaleTimeString('es-MX');
-  document.getElementById('last-sync').textContent = now;
-  if (statusDiv) {
-    if (ok > 0 && fail === 0)    statusDiv.innerHTML = '<span style="color:#2E7D32">✅ ' + ok + ' enviados — ' + now + '</span>';
-    else if (ok > 0 && fail > 0) statusDiv.innerHTML = '<span style="color:#F9A825">⚠️ ' + ok + ' enviados, ' + fail + ' fallaron</span>';
-    else if (fail > 0)           statusDiv.innerHTML = '<span style="color:#C62828">❌ Error — verifica conexión</span>';
-    else                         statusDiv.innerHTML = '<span style="color:#888">Sin pendientes</span>';
+  var nowStr = new Date().toLocaleTimeString('es-MX');
+  document.getElementById('last-sync').textContent = nowStr;
+  if (sDiv) {
+    if      (ok > 0 && fail === 0) sDiv.innerHTML = '<span style="color:#2E7D32">✅ ' + ok + ' enviados — ' + nowStr + '</span>';
+    else if (ok > 0 && fail > 0)   sDiv.innerHTML = '<span style="color:#F9A825">⚠️ ' + ok + ' enviados, ' + fail + ' fallaron</span>';
+    else if (fail > 0)             sDiv.innerHTML = '<span style="color:#C62828">❌ Error — verifica conexión</span>';
+    else                           sDiv.innerHTML = '<span style="color:#888">Sin pendientes que enviar</span>';
   }
   if (ok > 0 && fail === 0) toast(ok + ' registro(s) enviado(s) ✓', 'success');
   else if (ok > 0 && fail > 0) toast(ok + ' enviados, ' + fail + ' fallaron — reintenta', 'warn');
