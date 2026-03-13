@@ -493,15 +493,6 @@
         <div style="font-size:0.7rem;color:var(--text-soft);margin-top:4px;">
           Última sync: <strong id="last-sync">—</strong>
         </div>
-        <button id="btnSyncPerm" onclick="syncPending(true)"
-          style="margin-top:10px;width:100%;padding:10px;background:var(--verde-corp);
-                 color:white;border:none;border-radius:10px;font-family:Outfit,sans-serif;
-                 font-size:0.82rem;font-weight:700;cursor:pointer;
-                 display:flex;align-items:center;justify-content:center;gap:8px;">
-          <i class="fas fa-sync-alt"></i> Sincronizar pendientes
-        </button>
-        <div id="syncStatus" style="font-size:0.72rem;text-align:center;margin-top:5px;
-             color:var(--text-soft);min-height:16px;"></div>
       </div>
     </div>
 
@@ -569,7 +560,7 @@
 'use strict';
 // ─── CONFIG ──────────────────────────────────────────────────
 var SCRIPT_URL   = localStorage.getItem('prodeni_script_url') ||
-  'https://script.google.com/macros/s/AKfycbzL1rulHYIRiy81hRPPP7nSRFjnfiPsxXWdiYVs-N7owJ2ppyS1EMB-45mBgTBHJ-rT/exec';
+  'https://script.google.com/macros/s/AKfycbz8rv5sN5oTNQzKGrV5GnxJ6U5FtJEvvvmhMpvI5ZIZ52XZMc1eYTKdVK1oc2c2ZGZs7Q/exec';
 var AGRIBRAIN_URL = 'AGRIBRAIN_URL_AQUI';
 
 // ─── ESTADO ──────────────────────────────────────────────────
@@ -999,14 +990,16 @@ async function submitToAppsScript(data) {
   clean.action = 'saveData';
   var url = SCRIPT_URL + '?' + new URLSearchParams(clean).toString();
 
-  // Apps Script usa redirect — el método más confiable es <img> tag
-  // El navegador sigue el redirect y Apps Script ejecuta el handler
-  // aunque devuelva JSON (no imagen), onerror se dispara DESPUÉS de que el dato fue guardado
+  // Método: <img> tag — el más confiable para Apps Script
+  // Apps Script redirige script.google.com → googleusercontent.com
+  // El img tag sigue el redirect sin restricciones CORS
+  // onerror se dispara porque recibe JSON (no imagen)
+  // PERO el handler YA se ejecutó y el dato está guardado en el Sheet
   return new Promise(function(resolve, reject) {
     var img = new Image();
     var timer = setTimeout(function() {
       img.src = '';
-      reject(new Error('timeout'));
+      reject(new Error('timeout — sin respuesta del servidor'));
     }, 15000);
     img.onload = img.onerror = function() {
       clearTimeout(timer);
@@ -1119,11 +1112,7 @@ async function syncPending(manual) {
 
   _syncInProgress = true;
   var btnSync = document.getElementById('btnSyncAll');
-  var bPerm2  = document.getElementById('btnSyncPerm');
-  var sDiv2   = document.getElementById('syncStatus');
-  if (btnSync) { btnSync.disabled = true; btnSync.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
-  if (bPerm2)  { bPerm2.disabled  = true; bPerm2.innerHTML  = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
-  if (sDiv2)     sDiv2.innerHTML = '<span style="color:#2E7D32">⏳ Enviando ' + pending.length + ' registro(s)...</span>';
+  if (btnSync) { btnSync.disabled = true; btnSync.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sincronizando...'; }
   if (manual) toast('Enviando ' + pending.length + ' registro(s)...', 'info');
 
   var ok = 0, fail = 0;
@@ -1157,19 +1146,9 @@ async function syncPending(manual) {
   }
 
   _syncInProgress = false;
-  var bPerm = document.getElementById('btnSyncPerm');
-  var sDiv  = document.getElementById('syncStatus');
   if (btnSync) { btnSync.disabled = false; btnSync.innerHTML = '<i class="fas fa-sync-alt"></i> Sincronizar Todo'; }
-  if (bPerm)   { bPerm.disabled   = false; bPerm.innerHTML   = '<i class="fas fa-sync-alt"></i> Sincronizar pendientes'; }
   loadPending(); updateStats();
-  var nowStr = new Date().toLocaleTimeString('es-MX');
-  document.getElementById('last-sync').textContent = nowStr;
-  if (sDiv) {
-    if      (ok > 0 && fail === 0) sDiv.innerHTML = '<span style="color:#2E7D32">✅ ' + ok + ' enviados — ' + nowStr + '</span>';
-    else if (ok > 0 && fail > 0)   sDiv.innerHTML = '<span style="color:#F9A825">⚠️ ' + ok + ' enviados, ' + fail + ' fallaron</span>';
-    else if (fail > 0)             sDiv.innerHTML = '<span style="color:#C62828">❌ Error — verifica conexión</span>';
-    else                           sDiv.innerHTML = '<span style="color:#888">Sin pendientes que enviar</span>';
-  }
+  document.getElementById('last-sync').textContent = new Date().toLocaleTimeString('es-MX');
   if (ok > 0 && fail === 0) toast(ok + ' registro(s) enviado(s) ✓', 'success');
   else if (ok > 0 && fail > 0) toast(ok + ' enviados, ' + fail + ' fallaron — reintenta', 'warn');
   else if (fail > 0) toast('Error al enviar. Intenta de nuevo.', 'error');

@@ -4,7 +4,7 @@
 //  Cambiar CACHE_NAME al subir nueva versión → v4.1, v4.2...
 // ============================================================
 
-const CACHE_NAME = 'prodeni-v4.3'; // bumpeado para forzar recarga
+const CACHE_NAME = 'prodeni-v4.4'; // bumpeado para forzar recarga
 const SYNC_TAG   = 'prodeni-sync';
 
 const CACHE_FILES = [
@@ -17,8 +17,6 @@ const CACHE_FILES = [
   './Logo.png',
   './icon-192.png',
   './icon-512.png',
-  './icon-192-maskable.png',
-  './icon-512-maskable.png',
   'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-solid-900.woff2',

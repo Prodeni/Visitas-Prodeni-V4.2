@@ -8,8 +8,6 @@
   <meta name="theme-color" content="#1B5E20">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="PRODENI">
-  <link rel="apple-touch-icon" href="Logo.png">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -229,7 +227,7 @@
 
 <div class="card">
   <div class="brand">
-    <img src="Logo.png" alt="PRODENI" class="brand-logo">
+    <img src="Logo_sin_fondo.png" alt="PRODENI" class="brand-logo">
     <span class="brand-slogan">Guardianes de la Tierra</span>
   </div>
 
@@ -263,38 +261,15 @@
     <span id="errorMsg">Error</span>
   </div>
 
-  <div id="installBtnWrap" style="text-align:center;margin-top:1.2rem;display:none;">
-    <button onclick="triggerInstall()" id="btnInstallApp"
-      style="background:none;border:1.5px solid var(--verde-corp);color:var(--verde-corp);
-             padding:8px 18px;border-radius:20px;font-family:Outfit,sans-serif;font-size:0.78rem;
-             font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;
-             transition:all 0.2s;">
-      <i class="fas fa-download"></i> Instalar app
-    </button>
-  </div>
   <p class="version">PRODENI v4.0</p>
 </div>
 
 <script src="session.js"></script>
 <script>
-  // ── CAPTURAR beforeinstallprompt LO ANTES POSIBLE ─────────
-  // CRÍTICO: fuera del DOMContentLoaded para no perder el evento
-  // cuando Chrome lo dispara durante la carga (SW ya activo)
-  var _installPrompt = null;
-  window.addEventListener('beforeinstallprompt', function(e) {
-    // NO llamar e.preventDefault() — dejar que Chrome muestre su banner nativo
-    // (el del panel izquierdo que aparece automáticamente)
-    _installPrompt = e;  // guardarlo por si el usuario cierra el banner nativo
-    // Mostrar botón "Instalar app" como respaldo visible en el login
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      checkShowInstallBtn();
-    }
-  });
-
   // ── CONFIG ───────────────────────────────────────────────
   // La URL se guarda desde el panel admin o se puede poner aquí directamente
   var SCRIPT_URL = localStorage.getItem('prodeni_script_url') ||
-    'https://script.google.com/macros/s/AKfycbzL1rulHYIRiy81hRPPP7nSRFjnfiPsxXWdiYVs-N7owJ2ppyS1EMB-45mBgTBHJ-rT/exec';
+    'https://script.google.com/macros/s/AKfycbz8rv5sN5oTNQzKGrV5GnxJ6U5FtJEvvvmhMpvI5ZIZ52XZMc1eYTKdVK1oc2c2ZGZs7Q/exec';
 
   // ── Registrar Service Worker ─────────────────────────────
   if ('serviceWorker' in navigator) {
@@ -408,33 +383,28 @@
   });
 
   // ── Banner de instalación PWA ─────────────────────────────
-  // _installPrompt ya declarado arriba (captura temprana fuera del DOM)
-  var _isStandalone = window.matchMedia('(display-mode: standalone)').matches
+  var _installPrompt = null;
+  var _isStandalone  = window.matchMedia('(display-mode: standalone)').matches
     || window.navigator.standalone === true;
 
   if (!_isStandalone && !localStorage.getItem('prodeni_pwa_done')) {
-    // Si beforeinstallprompt ya fue capturado antes de este punto → mostrar banner
-    if (_installPrompt) {
-      setTimeout(showInstallBanner, 1500);
-    }
-    // iOS Safari: nunca dispara beforeinstallprompt → instrucciones manuales
-    // Android sin prompt (Chrome decide no mostrarlo): instrucciones manuales a los 6s
-    setTimeout(function() {
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      _installPrompt = e;
+      setTimeout(showInstallBanner, 3000);
+    });
+    // iOS no dispara beforeinstallprompt — instrucciones manuales
+    setTimeout(() => {
       if (!_installPrompt && !document.getElementById('installBanner')) {
         showManualInstallBanner();
       }
-    }, 6000);
+    }, 5000);
   }
 
-  window.addEventListener('appinstalled', function() {
+  window.addEventListener('appinstalled', () => {
     localStorage.setItem('prodeni_pwa_done', '1');
-    var b = document.getElementById('installBanner');
-    if (b) b.remove();
-    document.getElementById('installBtnWrap').style.display = 'none';
+    document.getElementById('installBanner')?.remove();
   });
-
-  // Verificar si mostrar botón instalar al cargar
-  setTimeout(checkShowInstallBtn, 2000);
 
   function showInstallBanner() {
     if (document.getElementById('installBanner')) return;
@@ -457,71 +427,34 @@
 
   function showManualInstallBanner() {
     if (document.getElementById('installBanner')) return;
-    var isIOS     = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    var isSafari  = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    var msg, icon;
-    if (isIOS && isSafari) {
-      // iOS Safari: botón compartir → Agregar a pantalla de inicio
-      msg  = 'Toca el botón <strong>Compartir</strong> <span style="font-size:1rem;">⎋</span> ' +
-             'y luego <strong>"Añadir a pantalla de inicio"</strong>';
-      icon = '📲';
-    } else if (isIOS) {
-      // iOS Chrome/Firefox: no soporta instalación PWA
-      return;
-    } else {
-      // Android Chrome sin prompt automático
-      msg  = 'Toca el menú <strong>⋮</strong> del navegador y selecciona ' +
-             '<strong>"Instalar aplicación"</strong> o <strong>"Agregar a pantalla de inicio"</strong>';
-      icon = '📲';
-    }
-    var b = document.createElement('div');
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const msg = isIOS
+      ? '📲 Toca <strong>Compartir</strong> → <strong>Agregar a inicio</strong>'
+      : '📲 Menú del navegador → <strong>Instalar aplicación</strong>';
+    const b = document.createElement('div');
     b.id = 'installBanner';
     b.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);' +
-      'background:#1B5E20;color:white;padding:14px 16px;border-radius:16px;' +
-      'font-family:Outfit,sans-serif;font-size:0.82rem;' +
-      'display:flex;flex-direction:column;gap:10px;z-index:9999;' +
-      'box-shadow:0 8px 30px rgba(0,0,0,0.45);max-width:320px;width:92%;';
-    b.innerHTML =
-      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-        '<strong style="font-size:0.9rem;">' + icon + ' Instala PRODENI</strong>' +
-        '<button onclick="closeBanner()" style="background:none;border:none;color:rgba(255,255,255,0.6);' +
-          'font-size:1.3rem;cursor:pointer;padding:0;line-height:1;">✕</button>' +
-      '</div>' +
-      '<div style="line-height:1.6;color:rgba(255,255,255,0.9);">' + msg + '</div>';
+      'background:#1B5E20;color:white;padding:14px 16px;border-radius:14px;' +
+      'font-family:Outfit,sans-serif;font-size:0.8rem;' +
+      'display:flex;flex-direction:column;gap:8px;z-index:9999;' +
+      'box-shadow:0 8px 30px rgba(0,0,0,0.4);max-width:300px;width:90%;';
+    b.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+      '<strong>🌿 Instala PRODENI</strong>' +
+      '<button onclick="closeBanner()" style="background:none;border:none;color:rgba(255,255,255,0.7);' +
+      'font-size:1.2rem;cursor:pointer;padding:0;">✕</button></div>' +
+      '<div style="line-height:1.5;">' + msg + '</div>';
     document.body.appendChild(b);
-    setTimeout(function() { var x = document.getElementById('installBanner'); if(x) x.remove(); }, 20000);
+    setTimeout(() => b.remove(), 18000);
   }
 
   function installPWA() {
     if (!_installPrompt) return;
     _installPrompt.prompt();
-    _installPrompt.userChoice.then(function(r) {
+    _installPrompt.userChoice.then(r => {
       if (r.outcome === 'accepted') localStorage.setItem('prodeni_pwa_done', '1');
       _installPrompt = null;
-      var b = document.getElementById('installBanner');
-      if (b) b.remove();
-      document.getElementById('installBtnWrap').style.display = 'none';
+      document.getElementById('installBanner')?.remove();
     });
-  }
-
-  function triggerInstall() {
-    if (_installPrompt) {
-      installPWA();
-    } else {
-      // Sin prompt disponible → mostrar instrucciones manuales
-      showManualInstallBanner();
-    }
-  }
-
-  // Mostrar botón instalar si hay prompt disponible o es iOS
-  function checkShowInstallBtn() {
-    var wrap = document.getElementById('installBtnWrap');
-    if (!wrap) return;
-    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    if (_installPrompt || (isIOS && isSafari)) {
-      wrap.style.display = 'block';
-    }
   }
 
   function closeBanner() {
